@@ -24,50 +24,10 @@ services:
       name: data
       mountPath: /var/lib/postgresql
       sizeGB: 1
+    # start.sh, base64-encoded. Render rewrites ${VAR in a Docker
+    # command before the shell runs. The encoded text has no $ or {.
     dockerCommand: |-
-      /bin/sh -c 'set -eu
-      echo "pg_pinecone_env PORT=${PORT-<unset>} PGHOST=${PGHOST-<unset>} PGPORT=${PGPORT-<unset>}"
-      names=$(env | cut -d= -f1 | sort | tr "\n" " ")
-      echo "pg_pinecone_env_names=$names"
-      echo "pg_pinecone_render name=${RENDER_SERVICE_NAME-<unset>} discovery=${RENDER_DISCOVERY_SERVICE-<unset>} external_host=${RENDER_EXTERNAL_HOSTNAME-<empty>} type=${RENDER_SERVICE_TYPE-<unset>} private_host=${PRIVATE_HOST-<unset>}"
-      if [ -n "${PORT+x}" ]; then echo "pg_pinecone_unset PORT"; unset PORT; fi
-      if [ -n "${PGHOST+x}" ]; then echo "pg_pinecone_unset PGHOST"; unset PGHOST; fi
-      if [ -n "${PGPORT+x}" ]; then echo "pg_pinecone_unset PGPORT"; unset PGPORT; fi
-      pass_file=/var/lib/postgresql/.pg_pinecone_password
-      if [ ! -s "$pass_file" ]; then
-        umask 077
-        if [ -z "${POSTGRES_PASSWORD:-}" ]; then
-          if command -v openssl >/dev/null 2>&1; then
-            openssl rand -hex 32 | tr -d "\n" > "$pass_file"
-          else
-            od -An -tx1 -N32 /dev/urandom | tr -d " \n" > "$pass_file"
-          fi
-        else
-          case "$POSTGRES_PASSWORD" in
-            *[!A-Za-z0-9_-]*)
-              echo "POSTGRES_PASSWORD must contain only letters, digits, hyphen, and underscore." >&2
-              exit 1
-              ;;
-          esac
-          printf "%s" "$POSTGRES_PASSWORD" > "$pass_file"
-        fi
-        umask 022
-        test -s "$pass_file"
-      fi
-      POSTGRES_PASSWORD=$(tr -d "\n" < "$pass_file")
-      export POSTGRES_PASSWORD
-      chown postgres:postgres "$pass_file"
-      chmod 600 "$pass_file"
-      umask 022
-      mkdir -p /docker-entrypoint-initdb.d
-      printf "%s\n" "CREATE EXTENSION IF NOT EXISTS vector;" "CREATE EXTENSION IF NOT EXISTS pg_pinecone;" > /docker-entrypoint-initdb.d/00-pg-pinecone.sql
-      chmod 644 /docker-entrypoint-initdb.d/00-pg-pinecone.sql
-      if [ -n "${PRIVATE_HOST:-}" ]; then
-        printf "postgresql://%s:%s@%s:5432/%s\n" "${POSTGRES_USER:-postgres}" "$POSTGRES_PASSWORD" "$PRIVATE_HOST" "${POSTGRES_DB:-pg_pinecone}" > /var/lib/postgresql/.private_database_url
-        chown postgres:postgres /var/lib/postgresql/.private_database_url
-        chmod 600 /var/lib/postgresql/.private_database_url
-      fi
-      exec docker-entrypoint.sh postgres -c shared_preload_libraries=pg_pinecone --port=5432'
+      /bin/sh -c 'printf %s IyBTdGFydCBzY3JpcHQgZm9yIHRoZSBSZW5kZXIgc2VydmljZS4KIyByZW5kZXIueWFtbCBydW5zIHRoaXMgZmlsZSBieSBiYXNlNjQtZGVjb2RpbmcgaXQuIFJlbmRlciByZXdyaXRlcwojICR7VkFSIHNlcXVlbmNlcyBpbiBhIERvY2tlciBjb21tYW5kIGJlZm9yZSB0aGUgc2hlbGwgcnVucywgc28gdGhlCiMgY29tbWFuZCBzdG9yZWQgaW4gdGhlIGJsdWVwcmludCBjYW5ub3QgY29udGFpbiB0aGVtLgpzZXQgLWV1CmxvZ192YXIoKSB7CiAgaWYgcHJpbnRlbnYgIiQxIiA+L2Rldi9udWxsIDI+JjE7IHRoZW4KICAgIHByaW50ZiAncGdfcGluZWNvbmVfZW52ICVzPSVzXG4nICIkMSIgIiQocHJpbnRlbnYgIiQxIikiCiAgZWxzZQogICAgcHJpbnRmICdwZ19waW5lY29uZV9lbnYgJXM9PHVuc2V0PlxuJyAiJDEiCiAgZmkKfQpsb2dfdmFyIFBPUlQKbG9nX3ZhciBQR0hPU1QKbG9nX3ZhciBQR1BPUlQKbG9nX3ZhciBSRU5ERVJfU0VSVklDRV9OQU1FCmxvZ192YXIgUkVOREVSX0RJU0NPVkVSWV9TRVJWSUNFCmxvZ192YXIgUkVOREVSX0VYVEVSTkFMX0hPU1ROQU1FCmxvZ192YXIgUkVOREVSX1NFUlZJQ0VfVFlQRQpsb2dfdmFyIFBSSVZBVEVfSE9TVApsb2dfdmFyIFBPU1RHUkVTX1VTRVIKbG9nX3ZhciBQT1NUR1JFU19EQgpwcmludGYgJ3BnX3BpbmVjb25lX2Vudl9uYW1lcz0nCmVudiB8IGN1dCAtZD0gLWYxIHwgc29ydCB8IHRyICdcbicgJyAnCnByaW50ZiAnXG4nCnVuc2V0X2lmX3NldCgpIHsKICBpZiBwcmludGVudiAiJDEiID4vZGV2L251bGwgMj4mMTsgdGhlbgogICAgcHJpbnRmICdwZ19waW5lY29uZV91bnNldCAlc1xuJyAiJDEiCiAgICB1bnNldCAiJDEiCiAgZmkKfQp1bnNldF9pZl9zZXQgUE9SVAp1bnNldF9pZl9zZXQgUEdIT1NUCnVuc2V0X2lmX3NldCBQR1BPUlQKcGFzc19maWxlPS92YXIvbGliL3Bvc3RncmVzcWwvLnBnX3BpbmVjb25lX3Bhc3N3b3JkCmlmIFsgISAtcyAiJHBhc3NfZmlsZSIgXTsgdGhlbgogIHVtYXNrIDA3NwogIGlmICEgcHJpbnRlbnYgUE9TVEdSRVNfUEFTU1dPUkQgPi9kZXYvbnVsbCAyPiYxIHx8IFsgLXogIiQocHJpbnRlbnYgUE9TVEdSRVNfUEFTU1dPUkQpIiBdOyB0aGVuCiAgICBpZiBjb21tYW5kIC12IG9wZW5zc2wgPi9kZXYvbnVsbCAyPiYxOyB0aGVuCiAgICAgIG9wZW5zc2wgcmFuZCAtaGV4IDMyIHwgdHIgLWQgJ1xuJyA+ICIkcGFzc19maWxlIgogICAgZWxzZQogICAgICBvZCAtQW4gLXR4MSAtTjMyIC9kZXYvdXJhbmRvbSB8IHRyIC1kICcgXG4nID4gIiRwYXNzX2ZpbGUiCiAgICBmaQogIGVsc2UKICAgIHB3PSQocHJpbnRlbnYgUE9TVEdSRVNfUEFTU1dPUkQpCiAgICBjYXNlICIkcHciIGluCiAgICAgICpbIUEtWmEtejAtOV8tXSopCiAgICAgICAgZWNobyAiUE9TVEdSRVNfUEFTU1dPUkQgbXVzdCBjb250YWluIG9ubHkgbGV0dGVycywgZGlnaXRzLCBoeXBoZW4sIGFuZCB1bmRlcnNjb3JlLiIgPiYyCiAgICAgICAgZXhpdCAxCiAgICAgICAgOzsKICAgIGVzYWMKICAgIHByaW50ZiAnJXMnICIkcHciID4gIiRwYXNzX2ZpbGUiCiAgZmkKICB1bWFzayAwMjIKICB0ZXN0IC1zICIkcGFzc19maWxlIgpmaQpQT1NUR1JFU19QQVNTV09SRD0kKHRyIC1kICdcbicgPCAiJHBhc3NfZmlsZSIpCmV4cG9ydCBQT1NUR1JFU19QQVNTV09SRApjaG93biBwb3N0Z3Jlczpwb3N0Z3JlcyAiJHBhc3NfZmlsZSIKY2htb2QgNjAwICIkcGFzc19maWxlIgp1bWFzayAwMjIKbWtkaXIgLXAgL2RvY2tlci1lbnRyeXBvaW50LWluaXRkYi5kCnByaW50ZiAnJXNcbicgJ0NSRUFURSBFWFRFTlNJT04gSUYgTk9UIEVYSVNUUyB2ZWN0b3I7JyAnQ1JFQVRFIEVYVEVOU0lPTiBJRiBOT1QgRVhJU1RTIHBnX3BpbmVjb25lOycgPiAvZG9ja2VyLWVudHJ5cG9pbnQtaW5pdGRiLmQvMDAtcGctcGluZWNvbmUuc3FsCmNobW9kIDY0NCAvZG9ja2VyLWVudHJ5cG9pbnQtaW5pdGRiLmQvMDAtcGctcGluZWNvbmUuc3FsCmlmIHByaW50ZW52IFBSSVZBVEVfSE9TVCA+L2Rldi9udWxsIDI+JjEgJiYgWyAtbiAiJChwcmludGVudiBQUklWQVRFX0hPU1QpIiBdOyB0aGVuCiAgdXNlcj0kKHByaW50ZW52IFBPU1RHUkVTX1VTRVIgfHwgdHJ1ZSkKICBkYj0kKHByaW50ZW52IFBPU1RHUkVTX0RCIHx8IHRydWUpCiAgWyAtbiAiJHVzZXIiIF0gfHwgdXNlcj1wb3N0Z3JlcwogIFsgLW4gIiRkYiIgXSB8fCBkYj1wZ19waW5lY29uZQogIGhvc3Q9JChwcmludGVudiBQUklWQVRFX0hPU1QpCiAgcHJpbnRmICdwb3N0Z3Jlc3FsOi8vJXM6JXNAJXM6NTQzMi8lc1xuJyAiJHVzZXIiICIkUE9TVEdSRVNfUEFTU1dPUkQiICIkaG9zdCIgIiRkYiIgPiAvdmFyL2xpYi9wb3N0Z3Jlc3FsLy5wcml2YXRlX2RhdGFiYXNlX3VybAogIGNob3duIHBvc3RncmVzOnBvc3RncmVzIC92YXIvbGliL3Bvc3RncmVzcWwvLnByaXZhdGVfZGF0YWJhc2VfdXJsCiAgY2htb2QgNjAwIC92YXIvbGliL3Bvc3RncmVzcWwvLnByaXZhdGVfZGF0YWJhc2VfdXJsCmZpCmV4ZWMgZG9ja2VyLWVudHJ5cG9pbnQuc2ggcG9zdGdyZXMgLWMgc2hhcmVkX3ByZWxvYWRfbGlicmFyaWVzPXBnX3BpbmVjb25lIC0tcG9ydD01NDMyCg== | base64 -d | /bin/sh'
     envVars:
       - key: POSTGRES_USER
         value: postgres

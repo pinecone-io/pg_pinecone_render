@@ -56,6 +56,8 @@ From your computer, the service has no public URL. Use the [Render Shell or SSH]
 
 If Render injects `PORT`, `PGHOST`, or `PGPORT`, the start command logs the value and unsets that variable before Postgres starts. The listen port stays 5432.
 
+The start script is `start.sh`. `render.yaml` base64-encodes it so Render's rewrite of `${VAR` in a Docker command does not change the script.
+
 ## Quickstart
 
 ```sql
