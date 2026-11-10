@@ -1,0 +1,83 @@
+# pg_pinecone on Render.
+# One private service, the public image, and a disk at /var/lib/postgresql.
+# Postgres 18 keeps its data in /var/lib/postgresql/18/docker, so the disk
+# has to cover that whole tree. There is no public port and no HTTP health
+# check: Postgres cannot answer one, and the image does not speak TLS.
+
+services:
+  - type: pserv
+    name: pg-pinecone
+    runtime: image
+    plan: 0.5c-512mb
+    region: oregon
+    # Deploy to Render button docs: later pushes to the blueprint repo
+    # must not redeploy every database created from the button.
+    # Quoted because YAML 1.1 would read a bare `off` as a boolean.
+    autoDeployTrigger: "off"
+    # maxShutdownDelaySeconds is not set. Railway waits 60 seconds so
+    # Postgres can checkpoint, and Render's default is 30, but the
+    # Blueprint validator rejects the field on a service with a disk:
+    # "max shutdown delay is not supported for services with a disk".
+    image:
+      url: docker.io/pineconeteam/pg_pinecone:pg18
+    disk:
+      name: data
+      mountPath: /var/lib/postgresql
+      sizeGB: 1
+    dockerCommand: |-
+      /bin/sh -c 'set -eu
+      echo "pg_pinecone_env PORT=${PORT-<unset>} PGHOST=${PGHOST-<unset>} PGPORT=${PGPORT-<unset>}"
+      names=$(env | cut -d= -f1 | sort | tr "\n" " ")
+      echo "pg_pinecone_env_names=$names"
+      echo "pg_pinecone_render name=${RENDER_SERVICE_NAME-<unset>} discovery=${RENDER_DISCOVERY_SERVICE-<unset>} external_host=${RENDER_EXTERNAL_HOSTNAME-<empty>} type=${RENDER_SERVICE_TYPE-<unset>} private_host=${PRIVATE_HOST-<unset>}"
+      if [ -n "${PORT+x}" ]; then echo "pg_pinecone_unset PORT"; unset PORT; fi
+      if [ -n "${PGHOST+x}" ]; then echo "pg_pinecone_unset PGHOST"; unset PGHOST; fi
+      if [ -n "${PGPORT+x}" ]; then echo "pg_pinecone_unset PGPORT"; unset PGPORT; fi
+      pass_file=/var/lib/postgresql/.pg_pinecone_password
+      if [ ! -s "$pass_file" ]; then
+        umask 077
+        if [ -z "${POSTGRES_PASSWORD:-}" ]; then
+          if command -v openssl >/dev/null 2>&1; then
+            openssl rand -hex 32 | tr -d "\n" > "$pass_file"
+          else
+            od -An -tx1 -N32 /dev/urandom | tr -d " \n" > "$pass_file"
+          fi
+        else
+          case "$POSTGRES_PASSWORD" in
+            *[!A-Za-z0-9_-]*)
+              echo "POSTGRES_PASSWORD must contain only letters, digits, hyphen, and underscore." >&2
+              exit 1
+              ;;
+          esac
+          printf "%s" "$POSTGRES_PASSWORD" > "$pass_file"
+        fi
+        umask 022
+        test -s "$pass_file"
+      fi
+      POSTGRES_PASSWORD=$(tr -d "\n" < "$pass_file")
+      export POSTGRES_PASSWORD
+      chown postgres:postgres "$pass_file"
+      chmod 600 "$pass_file"
+      umask 022
+      mkdir -p /docker-entrypoint-initdb.d
+      printf "%s\n" "CREATE EXTENSION IF NOT EXISTS vector;" "CREATE EXTENSION IF NOT EXISTS pg_pinecone;" > /docker-entrypoint-initdb.d/00-pg-pinecone.sql
+      chmod 644 /docker-entrypoint-initdb.d/00-pg-pinecone.sql
+      if [ -n "${PRIVATE_HOST:-}" ]; then
+        printf "postgresql://%s:%s@%s:5432/%s\n" "${POSTGRES_USER:-postgres}" "$POSTGRES_PASSWORD" "$PRIVATE_HOST" "${POSTGRES_DB:-pg_pinecone}" > /var/lib/postgresql/.private_database_url
+        chown postgres:postgres /var/lib/postgresql/.private_database_url
+        chmod 600 /var/lib/postgresql/.private_database_url
+      fi
+      exec docker-entrypoint.sh postgres -c shared_preload_libraries=pg_pinecone --port=5432'
+    envVars:
+      - key: POSTGRES_USER
+        value: postgres
+      - key: POSTGRES_DB
+        value: pg_pinecone
+      # Internal hostname for the private URL file written at start.
+      # Not PGHOST: that name is read by libpq and can point Postgres
+      # clients inside the entrypoint at the wrong address.
+      - key: PRIVATE_HOST
+        fromService:
+          name: pg-pinecone
+          type: pserv
+          property: host
