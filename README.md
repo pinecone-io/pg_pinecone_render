@@ -6,7 +6,7 @@ Image: [`docker.io/pineconeteam/pg_pinecone:pg18`](https://hub.docker.com/r/pine
 
 ## Deploy to Render
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/pinecone-io/pg-pinecone-render)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/pinecone-io/pg_pinecone_render)
 
 `autoDeployTrigger` is `off`, which is the field the [Deploy to Render button](https://render.com/docs/deploy-to-render) docs use. Pushes to the blueprint repository should not redeploy every database created from the button. For a prebuilt image, Render also documents that this field does not change image pulls. It is set because the button docs require it.
 
