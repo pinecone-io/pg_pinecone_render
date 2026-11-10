@@ -24,84 +24,44 @@ services:
       name: data
       mountPath: /var/lib/postgresql
       sizeGB: 1
-    # start.sh, inlined. A one-line base64 command was executed as a
-    # filename (File name too long). Dollar-brace expansions are also
-    # rewritten by Render before the shell runs.
+    # start.sh is base64, split across short lines. Render runs a
+    # one-line command as a filename, and it rewrites $names in the
+    # Docker command before the shell runs. The loader has neither.
     dockerCommand: |-
-      /bin/sh -c '# Start script for the Render service.
-      # Inlined into render.yaml. The Docker command must not contain a dollar-brace
-      # parameter expansion. Render rewrites that form before the shell runs.
-      set -eu
-      log_var() {
-        if printenv "$1" >/dev/null 2>&1; then
-          printf "pg_pinecone_env %s=%s\n" "$1" "$(printenv "$1")"
-        else
-          printf "pg_pinecone_env %s=<unset>\n" "$1"
-        fi
-      }
-      log_var PORT
-      log_var PGHOST
-      log_var PGPORT
-      log_var RENDER_SERVICE_NAME
-      log_var RENDER_DISCOVERY_SERVICE
-      log_var RENDER_EXTERNAL_HOSTNAME
-      log_var RENDER_SERVICE_TYPE
-      log_var PRIVATE_HOST
-      log_var POSTGRES_USER
-      log_var POSTGRES_DB
-      printf "pg_pinecone_env_names="
-      env | cut -d= -f1 | sort | tr "\n" " "
-      printf "\n"
-      unset_if_set() {
-        if printenv "$1" >/dev/null 2>&1; then
-          printf "pg_pinecone_unset %s\n" "$1"
-          unset "$1"
-        fi
-      }
-      unset_if_set PORT
-      unset_if_set PGHOST
-      unset_if_set PGPORT
-      pass_file=/var/lib/postgresql/.pg_pinecone_password
-      if [ ! -s "$pass_file" ]; then
-        umask 077
-        if ! printenv POSTGRES_PASSWORD >/dev/null 2>&1 || [ -z "$(printenv POSTGRES_PASSWORD)" ]; then
-          if command -v openssl >/dev/null 2>&1; then
-            openssl rand -hex 32 | tr -d "\n" > "$pass_file"
-          else
-            od -An -tx1 -N32 /dev/urandom | tr -d " \n" > "$pass_file"
-          fi
-        else
-          pw=$(printenv POSTGRES_PASSWORD)
-          case "$pw" in
-            *[!A-Za-z0-9_-]*)
-              echo "POSTGRES_PASSWORD must contain only letters, digits, hyphen, and underscore." >&2
-              exit 1
-              ;;
-          esac
-          printf "%s" "$pw" > "$pass_file"
-        fi
-        umask 022
-        test -s "$pass_file"
-      fi
-      POSTGRES_PASSWORD=$(tr -d "\n" < "$pass_file")
-      export POSTGRES_PASSWORD
-      chown postgres:postgres "$pass_file"
-      chmod 600 "$pass_file"
-      umask 022
-      mkdir -p /docker-entrypoint-initdb.d
-      printf "%s\n" "CREATE EXTENSION IF NOT EXISTS vector;" "CREATE EXTENSION IF NOT EXISTS pg_pinecone;" > /docker-entrypoint-initdb.d/00-pg-pinecone.sql
-      chmod 644 /docker-entrypoint-initdb.d/00-pg-pinecone.sql
-      if printenv PRIVATE_HOST >/dev/null 2>&1 && [ -n "$(printenv PRIVATE_HOST)" ]; then
-        user=$(printenv POSTGRES_USER || true)
-        db=$(printenv POSTGRES_DB || true)
-        [ -n "$user" ] || user=postgres
-        [ -n "$db" ] || db=pg_pinecone
-        host=$(printenv PRIVATE_HOST)
-        printf "postgresql://%s:%s@%s:5432/%s\n" "$user" "$POSTGRES_PASSWORD" "$host" "$db" > /var/lib/postgresql/.private_database_url
-        chown postgres:postgres /var/lib/postgresql/.private_database_url
-        chmod 600 /var/lib/postgresql/.private_database_url
-      fi
-      exec docker-entrypoint.sh postgres -c shared_preload_libraries=pg_pinecone --port=5432'
+      /bin/sh -c 'set -eu
+      rm -f /tmp/pg-pinecone.b64
+      printf "%s\n" "IyBTdGFydCBzY3JpcHQgZm9yIHRoZSBSZW5kZXIgc2VydmljZS4KIyBJbmxpbmVkIGludG8gcmVuZGVyLnlhbWwuIFRoZSBEb2NrZXIgY29tbWFuZCBtdXN0" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "IG5vdCBjb250YWluIGEgZG9sbGFyLWJyYWNlCiMgcGFyYW1ldGVyIGV4cGFuc2lvbi4gUmVuZGVyIHJld3JpdGVzIHRoYXQgZm9ybSBiZWZvcmUgdGhlIHNo" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "ZWxsIHJ1bnMuCnNldCAtZXUKbG9nX3ZhcigpIHsKICBpZiBwcmludGVudiAiJDEiID4vZGV2L251bGwgMj4mMTsgdGhlbgogICAgcHJpbnRmICJwZ19waW5l" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "Y29uZV9lbnYgJXM9JXNcbiIgIiQxIiAiJChwcmludGVudiAiJDEiKSIKICBlbHNlCiAgICBwcmludGYgInBnX3BpbmVjb25lX2VudiAlcz08dW5zZXQ+XG4i" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "ICIkMSIKICBmaQp9CmxvZ192YXIgUE9SVApsb2dfdmFyIFBHSE9TVApsb2dfdmFyIFBHUE9SVApsb2dfdmFyIFJFTkRFUl9TRVJWSUNFX05BTUUKbG9nX3Zh" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "ciBSRU5ERVJfRElTQ09WRVJZX1NFUlZJQ0UKbG9nX3ZhciBSRU5ERVJfRVhURVJOQUxfSE9TVE5BTUUKbG9nX3ZhciBSRU5ERVJfU0VSVklDRV9UWVBFCmxv" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "Z192YXIgUFJJVkFURV9IT1NUCmxvZ192YXIgUE9TVEdSRVNfVVNFUgpsb2dfdmFyIFBPU1RHUkVTX0RCCnByaW50ZiAicGdfcGluZWNvbmVfZW52X25hbWVz" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "PSIKZW52IHwgY3V0IC1kPSAtZjEgfCBzb3J0IHwgdHIgIlxuIiAiICIKcHJpbnRmICJcbiIKdW5zZXRfaWZfc2V0KCkgewogIGlmIHByaW50ZW52ICIkMSIg" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "Pi9kZXYvbnVsbCAyPiYxOyB0aGVuCiAgICBwcmludGYgInBnX3BpbmVjb25lX3Vuc2V0ICVzXG4iICIkMSIKICAgIHVuc2V0ICIkMSIKICBmaQp9CnVuc2V0" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "X2lmX3NldCBQT1JUCnVuc2V0X2lmX3NldCBQR0hPU1QKdW5zZXRfaWZfc2V0IFBHUE9SVApwYXNzX2ZpbGU9L3Zhci9saWIvcG9zdGdyZXNxbC8ucGdfcGlu" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "ZWNvbmVfcGFzc3dvcmQKaWYgWyAhIC1zICIkcGFzc19maWxlIiBdOyB0aGVuCiAgdW1hc2sgMDc3CiAgaWYgISBwcmludGVudiBQT1NUR1JFU19QQVNTV09S" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "RCA+L2Rldi9udWxsIDI+JjEgfHwgWyAteiAiJChwcmludGVudiBQT1NUR1JFU19QQVNTV09SRCkiIF07IHRoZW4KICAgIGlmIGNvbW1hbmQgLXYgb3BlbnNz" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "bCA+L2Rldi9udWxsIDI+JjE7IHRoZW4KICAgICAgb3BlbnNzbCByYW5kIC1oZXggMzIgfCB0ciAtZCAiXG4iID4gIiRwYXNzX2ZpbGUiCiAgICBlbHNlCiAg" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "ICAgIG9kIC1BbiAtdHgxIC1OMzIgL2Rldi91cmFuZG9tIHwgdHIgLWQgIiBcbiIgPiAiJHBhc3NfZmlsZSIKICAgIGZpCiAgZWxzZQogICAgcHc9JChwcmlu" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "dGVudiBQT1NUR1JFU19QQVNTV09SRCkKICAgIGNhc2UgIiRwdyIgaW4KICAgICAgKlshQS1aYS16MC05Xy1dKikKICAgICAgICBlY2hvICJQT1NUR1JFU19Q" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "QVNTV09SRCBtdXN0IGNvbnRhaW4gb25seSBsZXR0ZXJzLCBkaWdpdHMsIGh5cGhlbiwgYW5kIHVuZGVyc2NvcmUuIiA+JjIKICAgICAgICBleGl0IDEKICAg" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "ICAgICA7OwogICAgZXNhYwogICAgcHJpbnRmICIlcyIgIiRwdyIgPiAiJHBhc3NfZmlsZSIKICBmaQogIHVtYXNrIDAyMgogIHRlc3QgLXMgIiRwYXNzX2Zp" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "bGUiCmZpClBPU1RHUkVTX1BBU1NXT1JEPSQodHIgLWQgIlxuIiA8ICIkcGFzc19maWxlIikKZXhwb3J0IFBPU1RHUkVTX1BBU1NXT1JECmNob3duIHBvc3Rn" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "cmVzOnBvc3RncmVzICIkcGFzc19maWxlIgpjaG1vZCA2MDAgIiRwYXNzX2ZpbGUiCnVtYXNrIDAyMgpta2RpciAtcCAvZG9ja2VyLWVudHJ5cG9pbnQtaW5p" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "dGRiLmQKcHJpbnRmICIlc1xuIiAiQ1JFQVRFIEVYVEVOU0lPTiBJRiBOT1QgRVhJU1RTIHZlY3RvcjsiICJDUkVBVEUgRVhURU5TSU9OIElGIE5PVCBFWElT" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "VFMgcGdfcGluZWNvbmU7IiA+IC9kb2NrZXItZW50cnlwb2ludC1pbml0ZGIuZC8wMC1wZy1waW5lY29uZS5zcWwKY2htb2QgNjQ0IC9kb2NrZXItZW50cnlw" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "b2ludC1pbml0ZGIuZC8wMC1wZy1waW5lY29uZS5zcWwKaWYgcHJpbnRlbnYgUFJJVkFURV9IT1NUID4vZGV2L251bGwgMj4mMSAmJiBbIC1uICIkKHByaW50" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "ZW52IFBSSVZBVEVfSE9TVCkiIF07IHRoZW4KICB1c2VyPSQocHJpbnRlbnYgUE9TVEdSRVNfVVNFUiB8fCB0cnVlKQogIGRiPSQocHJpbnRlbnYgUE9TVEdS" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "RVNfREIgfHwgdHJ1ZSkKICBbIC1uICIkdXNlciIgXSB8fCB1c2VyPXBvc3RncmVzCiAgWyAtbiAiJGRiIiBdIHx8IGRiPXBnX3BpbmVjb25lCiAgaG9zdD0k" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "KHByaW50ZW52IFBSSVZBVEVfSE9TVCkKICBwcmludGYgInBvc3RncmVzcWw6Ly8lczolc0Alczo1NDMyLyVzXG4iICIkdXNlciIgIiRQT1NUR1JFU19QQVNT" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "V09SRCIgIiRob3N0IiAiJGRiIiA+IC92YXIvbGliL3Bvc3RncmVzcWwvLnByaXZhdGVfZGF0YWJhc2VfdXJsCiAgY2hvd24gcG9zdGdyZXM6cG9zdGdyZXMg" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "L3Zhci9saWIvcG9zdGdyZXNxbC8ucHJpdmF0ZV9kYXRhYmFzZV91cmwKICBjaG1vZCA2MDAgL3Zhci9saWIvcG9zdGdyZXNxbC8ucHJpdmF0ZV9kYXRhYmFz" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "ZV91cmwKZmkKZXhlYyBkb2NrZXItZW50cnlwb2ludC5zaCBwb3N0Z3JlcyAtYyBzaGFyZWRfcHJlbG9hZF9saWJyYXJpZXM9cGdfcGluZWNvbmUgLS1wb3J0" >> /tmp/pg-pinecone.b64
+      printf "%s\n" "PTU0MzIK" >> /tmp/pg-pinecone.b64
+      base64 -d /tmp/pg-pinecone.b64 > /tmp/pg-pinecone.sh
+      rm -f /tmp/pg-pinecone.b64
+      exec /bin/sh /tmp/pg-pinecone.sh'
     envVars:
       - key: POSTGRES_USER
         value: postgres

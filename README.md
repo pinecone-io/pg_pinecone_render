@@ -56,7 +56,7 @@ From your computer, the service has no public URL. Use the [Render Shell or SSH]
 
 If Render injects `PORT`, `PGHOST`, or `PGPORT`, the start command logs the value and unsets that variable before Postgres starts. The listen port stays 5432.
 
-The start script is `start.sh`, inlined into `render.yaml`. It reads variables with `printenv` because Render rewrites `${VAR` in a Docker command before the shell runs.
+The start script is `start.sh`. `render.yaml` writes that script out at boot. Render rewrites `$names` in a Docker command before the shell runs, so the command stored in the blueprint does not contain them.
 
 ## Quickstart
 
